@@ -18,17 +18,35 @@ package com.example.inventory.ui.home
 
 import androidx.lifecycle.ViewModel
 import com.example.inventory.data.Item
-
+import kotlinx.coroutines.flow.StateFlow
+import com.example.inventory.data.ItemsRepository
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 /**
  * ViewModel to retrieve all items in the Room database.
  */
-class HomeViewModel() : ViewModel() {
+class HomeViewModel(itemsRepository: ItemsRepository) : ViewModel() {
+
+    /**
+     * El estado de la IU para la pantalla de inicio.
+     * Se mueve fuera del companion object para poder usar 'itemsRepository'.
+     */
+    val homeUiState: StateFlow<HomeUiState> =
+        itemsRepository.getAllItemsStream().map { HomeUiState(it) }
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(TIMEOUT_MILLIS),
+                initialValue = HomeUiState()
+            )
+
     companion object {
         private const val TIMEOUT_MILLIS = 5_000L
     }
 }
 
 /**
- * Ui State for HomeScreen
+ * Estado de la IU para HomeScreen
  */
-data class HomeUiState(val itemList: List<Item> = listOf())
+data class HomeUiState(val itemList: List<Item> = emptyList())
