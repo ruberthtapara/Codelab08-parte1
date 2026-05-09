@@ -57,6 +57,11 @@ import com.example.inventory.R
 import com.example.inventory.data.Item
 import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.InventoryTheme
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.inventory.ui.AppViewModelProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 
 object ItemDetailsDestination : NavigationDestination {
     override val route = "item_details"
@@ -70,8 +75,12 @@ object ItemDetailsDestination : NavigationDestination {
 fun ItemDetailsScreen(
     navigateToEditItem: (Int) -> Unit,
     navigateBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: ItemDetailsViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
+    val uiState = viewModel.uiState.collectAsState()
+    val coroutineScope = rememberCoroutineScope()
+
     Scaffold(
         topBar = {
             InventoryTopAppBar(
@@ -82,22 +91,28 @@ fun ItemDetailsScreen(
         },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { navigateToEditItem(0) },
+                // ACTUALIZAMOS EL ONCLICK AQUÍ:
+                onClick = { navigateToEditItem(uiState.value.itemDetails.id) },
                 shape = MaterialTheme.shapes.medium,
                 modifier = Modifier.padding(dimensionResource(id = R.dimen.padding_large))
-
             ) {
                 Icon(
                     imageVector = Icons.Default.Edit,
                     contentDescription = stringResource(R.string.edit_item_title),
                 )
             }
-        }, modifier = modifier
+        },
+        modifier = modifier
     ) { innerPadding ->
         ItemDetailsBody(
-            itemDetailsUiState = ItemDetailsUiState(),
-            onSellItem = { },
-            onDelete = { },
+            itemUiState = uiState.value,
+            onSellItem = { viewModel.reduceQuantityByOne() },
+            onDelete = {
+                coroutineScope.launch {
+                    viewModel.deleteItem()
+                    navigateBack()
+                }
+            },
             modifier = Modifier
                 .padding(
                     start = innerPadding.calculateStartPadding(LocalLayoutDirection.current),
@@ -108,10 +123,9 @@ fun ItemDetailsScreen(
         )
     }
 }
-
 @Composable
 private fun ItemDetailsBody(
-    itemDetailsUiState: ItemDetailsUiState,
+    itemUiState: ItemDetailsUiState,
     onSellItem: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
@@ -123,17 +137,19 @@ private fun ItemDetailsBody(
         var deleteConfirmationRequired by rememberSaveable { mutableStateOf(false) }
 
         ItemDetails(
-            item = itemDetailsUiState.itemDetails.toItem(),
+            item = itemUiState.itemDetails.toItem(),
             modifier = Modifier.fillMaxWidth()
         )
+
         Button(
             onClick = onSellItem,
             modifier = Modifier.fillMaxWidth(),
             shape = MaterialTheme.shapes.small,
-            enabled = true
+            enabled = !itemUiState.outOfStock
         ) {
             Text(stringResource(R.string.sell))
         }
+
         OutlinedButton(
             onClick = { deleteConfirmationRequired = true },
             shape = MaterialTheme.shapes.small,
@@ -141,13 +157,17 @@ private fun ItemDetailsBody(
         ) {
             Text(stringResource(R.string.delete))
         }
+
+        // LÓGICA DEL DIÁLOGO DE CONFIRMACIÓN
         if (deleteConfirmationRequired) {
             DeleteConfirmationDialog(
                 onDeleteConfirm = {
-                    deleteConfirmationRequired = false
-                    onDelete()
+                    deleteConfirmationRequired = false // Cerramos el diálogo
+                    onDelete() // Ejecutamos la corrutina de borrado y navegación
                 },
-                onDeleteCancel = { deleteConfirmationRequired = false },
+                onDeleteCancel = {
+                    deleteConfirmationRequired = false // Solo cerramos el diálogo
+                },
                 modifier = Modifier.padding(dimensionResource(id = R.dimen.padding_medium))
             )
         }

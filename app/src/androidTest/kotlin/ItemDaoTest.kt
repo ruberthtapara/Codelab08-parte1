@@ -15,43 +15,30 @@ import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.IOException
-
+import org.junit.Assert.assertTrue
 @RunWith(AndroidJUnit4::class)
 class ItemDaoTest {
 
     private lateinit var itemDao: ItemDao
     private lateinit var inventoryDatabase: InventoryDatabase
 
-    // Datos de prueba: manzanas y bananas
     private var item1 = Item(1, "Apples", 10.0, 20)
     private var item2 = Item(2, "Bananas", 15.0, 97)
 
-    /**
-     * Configuración inicial: se ejecuta antes de cada prueba (@Test).
-     * Crea una base de datos temporal en la memoria RAM.
-     */
     @Before
     fun createDb() {
         val context: Context = ApplicationProvider.getApplicationContext()
-        // Usamos inMemoryDatabaseBuilder para que los datos se borren al terminar la prueba
         inventoryDatabase = Room.inMemoryDatabaseBuilder(context, InventoryDatabase::class.java)
-            // Permitimos consultas en el hilo principal solo para facilitar el testing
             .allowMainThreadQueries()
             .build()
         itemDao = inventoryDatabase.itemDao()
     }
 
-    /**
-     * Limpieza: se ejecuta después de cada prueba (@After).
-     * Cierra la base de datos para liberar recursos.
-     */
     @After
     @Throws(IOException::class)
     fun closeDb() {
         inventoryDatabase.close()
     }
-
-    // --- Funciones de utilidad para ayudar en las pruebas ---
 
     private suspend fun addOneItemToDb() {
         itemDao.insert(item1)
@@ -62,30 +49,75 @@ class ItemDaoTest {
         itemDao.insert(item2)
     }
 
-    // --- Pruebas unitarias (@Test) ---
-
-    /**
-     * Prueba que verifica si insertar un item funciona correctamente.
-     */
     @Test
     @Throws(Exception::class)
     fun daoInsert_insertsItemIntoDB() = runBlocking {
         addOneItemToDb()
         val allItems = itemDao.getAllItems().first()
-        // Comparamos que el primer elemento guardado sea igual al original
         assertEquals(allItems[0], item1)
     }
 
-    /**
-     * Prueba que verifica que getAllItems devuelva todos los registros de la DB.
-     */
     @Test
     @Throws(Exception::class)
     fun daoGetAllItems_returnsAllItemsFromDB() = runBlocking {
         addTwoItemsToDb()
         val allItems = itemDao.getAllItems().first()
-        // Verificamos que ambos elementos coincidan en orden y contenido
         assertEquals(allItems[0], item1)
         assertEquals(allItems[1], item2)
     }
+
+    // --- NUEVA PRUEBA DE ACTUALIZACIÓN ---
+
+    /**
+     * Prueba que verifica si actualizar los elementos funciona correctamente.
+     */
+    @Test
+    @Throws(Exception::class)
+    fun daoUpdateItems_updatesItemsInDB() = runBlocking {
+        // Primero agregamos los datos base
+        addTwoItemsToDb()
+
+        // Actualizamos las entidades con nuevos valores (precio y cantidad)
+        itemDao.update(Item(1, "Apples", 15.0, 25))
+        itemDao.update(Item(2, "Bananas", 5.0, 50))
+
+        // Recuperamos todo y verificamos que los cambios se hayan guardado
+        val allItems = itemDao.getAllItems().first()
+        assertEquals(allItems[0], Item(1, "Apples", 15.0, 25))
+        assertEquals(allItems[1], Item(2, "Bananas", 5.0, 50))
+    }
+    // --- NUEVA PRUEBA DE ELIMINACIÓN ---
+
+    @Test
+    @Throws(Exception::class)
+    fun daoDeleteItems_deletesAllItemsFromDB() = runBlocking {
+        // Agregamos los elementos de prueba
+        addTwoItemsToDb()
+
+        // Borramos ambos elementos
+        itemDao.delete(item1)
+        itemDao.delete(item2)
+
+        // Verificamos que la lista recuperada esté vacía
+        val allItems = itemDao.getAllItems().first()
+        assertTrue(allItems.isEmpty())
+    }
+    // --- NUEVA PRUEBA DE RECUPERACIÓN INDIVIDUAL ---
+
+    /**
+     * Prueba que verifica si podemos obtener un solo elemento específico por su ID.
+     */
+    @Test
+    @Throws(Exception::class)
+    fun daoGetItem_returnsItemFromDB() = runBlocking {
+        // Guardamos un producto en la base de datos
+        addOneItemToDb()
+
+        // Lo buscamos usando su ID (en este caso, el 1)
+        val item = itemDao.getItem(1)
+
+        // Verificamos que el elemento encontrado sea exactamente el que guardamos
+        assertEquals(item.first(), item1)
+    }
 }
+

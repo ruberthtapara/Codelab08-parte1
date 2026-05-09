@@ -34,7 +34,8 @@ import com.example.inventory.R
 import com.example.inventory.ui.AppViewModelProvider
 import com.example.inventory.ui.navigation.NavigationDestination
 import com.example.inventory.ui.theme.InventoryTheme
-
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 object ItemEditDestination : NavigationDestination {
     override val route = "item_edit"
     override val titleRes = R.string.edit_item_title
@@ -50,6 +51,9 @@ fun ItemEditScreen(
     modifier: Modifier = Modifier,
     viewModel: ItemEditViewModel = viewModel(factory = AppViewModelProvider.Factory)
 ) {
+    // Creamos el coroutineScope para manejar la operación de guardado (suspend)
+    val coroutineScope = rememberCoroutineScope()
+
     Scaffold(
         topBar = {
             InventoryTopAppBar(
@@ -62,8 +66,14 @@ fun ItemEditScreen(
     ) { innerPadding ->
         ItemEntryBody(
             itemUiState = viewModel.itemUiState,
-            onItemValueChange = { },
-            onSaveClick = { },
+            onItemValueChange = viewModel::updateUiState,
+            // CONFIGURAMOS EL CLIC EN GUARDAR:
+            onSaveClick = {
+                coroutineScope.launch {
+                    viewModel.updateItem()
+                    navigateBack()
+                }
+            },
             modifier = Modifier
                 .padding(
                     start = innerPadding.calculateStartPadding(LocalLayoutDirection.current),
